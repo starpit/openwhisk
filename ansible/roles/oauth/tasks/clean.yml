@@ -1,0 +1,15 @@
+---
+# Remove oauth containers.
+
+- name: remove oauth
+  docker_container:
+    name: oauth
+    image: "{{ docker_registry }}{{ docker_image_prefix }}/oauth:{{ docker_image_tag }}"
+    state: absent
+  ignore_errors: True
+
+- name: remove oauth log directory
+  file:
+    path: "{{ whisk_logs_dir }}/oauth"
+    state: absent
+  become: true

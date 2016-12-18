@@ -1,0 +1,6 @@
+---
+# This playbook deploys Openwhisk oauth entitlement service
+
+- hosts: oauth
+  roles:
+  - oauth

@@ -1,0 +1,53 @@
+---
+# This role will install the oauth entitlement service in group 'oauth' in the environment inventory
+
+- name: "pull the {{ docker_image_tag }} image of oauth"
+  shell: "docker pull {{ docker_registry }}{{ docker_image_prefix }}/oauth:{{ docker_image_tag }}"
+  when: docker_registry != ""
+
+- name: ensure oauth log directory is created with permissions
+  file:
+    path: "{{ whisk_logs_dir }}/oauth"
+    state: directory
+    mode: 0777
+  become: true
+
+- name: (re)start oauth
+  docker_container:
+    name: oauth
+    image: "{{ docker_registry }}{{ docker_image_prefix }}/oauth:{{ docker_image_tag }}"
+    state: started
+    recreate: true
+    restart_policy: "{{ docker.restart.policy }}"
+    hostname: oauth
+    env:
+      "COMPONENT_NAME": "oauth"
+      "CONSULSERVER_HOST": "{{ groups['consul_servers'] | first }}"
+      "CONSUL_HOST_PORT4": "{{ consul.port.http }}"
+      "PORT": 8080
+      "WHISK_VERSION_NAME": "{{ whisk_version_name }}"
+      "WHISK_VERSION_DATE": "{{ whisk.version.date }}"
+      "WHISK_VERSION_BUILDNO": "{{ docker_image_tag }}"
+      "KAFKA_NUMPARTITIONS": 2
+      "SERVICE_CHECK_HTTP": "/ping"
+      "SERVICE_CHECK_TIMEOUT": "2s"
+      "SERVICE_CHECK_INTERVAL": "15s"
+
+      "DB_USERNAME": "{{ db_username }}"
+      "DB_PASSWORD": "{{ db_password }}"
+      "DB_PROTOCOL": "{{ db_protocol }}"
+      "DB_HOST": "{{ db_host }}"
+      "DB_AUTHS": "{{ db_auth }}"
+      
+    volumes:
+      - "{{ whisk_logs_dir }}/oauth:/logs"
+    ports:
+      - "{{ oauth.port }}:8080"
+
+- name: wait until the oauth service in this host is up and running
+  uri:
+    url: "http://{{ inventory_hostname }}:{{ oauth.port }}/ping"
+  register: result
+  until: result.status == 200
+  retries: 12
+  delay: 5

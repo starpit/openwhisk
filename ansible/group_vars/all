@@ -71,6 +71,9 @@ apigateway:
     api_secure: 443
     mgmt: 9001
 
+oauth:
+  port: 10014
+
 redis:
   version: 3.2
   port: 6379

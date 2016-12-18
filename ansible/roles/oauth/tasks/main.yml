@@ -1,0 +1,10 @@
+---
+# This role will install oauth entitlement in group 'oauth' in the environment inventory
+# In deploy mode it will deploy oauth.
+# In clean mode it will remove the oauth entitlement containers.
+
+- include: deploy.yml
+  when: mode == "deploy"
+
+- include: clean.yml
+  when: mode == "clean"

@@ -1,0 +1,5 @@
+{
+  "_id": "_design/lookup",
+  "views": { "lookup": { "map": "function (doc) {\n  emit([doc.subject, doc.namespace, doc.created_at], {organization_guid: doc.organization_guid,space_guid: doc.space_guid});\n}" } },
+  "language": "javascript"
+}

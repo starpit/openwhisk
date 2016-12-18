@@ -11,6 +11,8 @@ include 'core:swiftAction'
 include 'core:swift3Action'
 include 'core:javaAction'
 
+include 'tools:oauth'
+
 include 'tools:cli'
 
 include 'sdk:docker'

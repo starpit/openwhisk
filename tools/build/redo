@@ -308,6 +308,11 @@ Components = [
                   yaml = False,
                   gradle = ':tools:cli'),
 
+    makeComponent('oauth',
+                  'build/deploy oauth',
+                  modes = 'clean',
+                  gradle = ':tools:oauth'),
+
     # required for tests
     makeComponent('props',
                   'build whisk.properties file (required for tests)',

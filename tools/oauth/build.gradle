@@ -1,0 +1,2 @@
+ext.dockerImageName = 'oauth'
+apply from: '../../gradle/docker.gradle'
