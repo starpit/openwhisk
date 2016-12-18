@@ -48,6 +48,7 @@ func init() {
         namespaceCmd,
         listCmd,
         apiCmd,
+	oauth_loginCmd,
     )
 
     WskCmd.PersistentFlags().BoolVarP(&flags.global.verbose, "verbose", "v", false, wski18n.T("verbose output"))

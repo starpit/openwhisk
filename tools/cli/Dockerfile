@@ -24,6 +24,11 @@ RUN echo "Generating i18n Go module"
 RUN cd /src/github.com/go-whisk-cli && /bin/go-bindata -pkg wski18n -o wski18n/i18n_resources.go wski18n/resources
 RUN cd /src/github.com/go-whisk && /bin/go-bindata -pkg wski18n -o wski18n/i18n_resources.go wski18n/resources
 
+# Smash the config files into the executable
+RUN echo "Smashing oauth providers.json"
+RUN cd /src/github.com/go-whisk-cli && /bin/go-bindata -pkg config -o config/config_resources.go config/resources
+
+
 # Generate a Go package dependency list
 # NOTE: Currently, the 'go list' command will not work against the current Go CLI non-standard file structure
 #RUN cd /src/github.com/go-whisk-cli && go list -f '{{join .Deps "\n"}}' > ../../../wsk.deps.out

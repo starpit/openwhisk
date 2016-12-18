@@ -17,11 +17,9 @@
 package commands
 
 import (
-    "bufio"
     "errors"
     "fmt"
     "os"
-    "strings"
 
     "github.com/mitchellh/go-homedir"
     "github.com/spf13/cobra"
@@ -29,6 +27,7 @@ import (
 
     "../../go-whisk/whisk"
     "../wski18n"
+    "./marshalling"
 )
 
 var Properties struct {
@@ -69,9 +68,9 @@ var propertySetCmd = &cobra.Command{
         var werr *whisk.WskError = nil
 
         // get current props
-        props, err := readProps(Properties.PropsFile)
+        props, err := marshalling.ReadProps(Properties.PropsFile)
         if err != nil {
-            whisk.Debug(whisk.DbgError, "readProps(%s) failed: %s\n", Properties.PropsFile, err)
+            whisk.Debug(whisk.DbgError, "ReadProps(%s) failed: %s\n", Properties.PropsFile, err)
             errStr := fmt.Sprintf(
                 wski18n.T("Unable to set the property value: {{.err}}",
                     map[string]interface{}{"err": err}))
@@ -149,7 +148,7 @@ var propertySetCmd = &cobra.Command{
             }
         }
 
-        err = writeProps(Properties.PropsFile, props)
+        err = marshalling.WriteProps(Properties.PropsFile, props)
         if err != nil {
             whisk.Debug(whisk.DbgError, "writeProps(%s, %#v) failed: %s\n", Properties.PropsFile, props, err)
             errStr := fmt.Sprintf(
@@ -175,9 +174,9 @@ var propertyUnsetCmd = &cobra.Command{
     SilenceErrors:  true,
     RunE: func(cmd *cobra.Command, args []string) error {
         var okMsg string = ""
-        props, err := readProps(Properties.PropsFile)
+        props, err := marshalling.ReadProps(Properties.PropsFile)
         if err != nil {
-            whisk.Debug(whisk.DbgError, "readProps(%s) failed: %s\n", Properties.PropsFile, err)
+            whisk.Debug(whisk.DbgError, "ReadProps(%s) failed: %s\n", Properties.PropsFile, err)
             errStr := fmt.Sprintf(
                 wski18n.T("Unable to unset the property value: {{.err}}",
                     map[string]interface{}{"err": err}))
@@ -247,9 +246,9 @@ var propertyUnsetCmd = &cobra.Command{
             }
         }
 
-        err = writeProps(Properties.PropsFile, props)
+        err = marshalling.WriteProps(Properties.PropsFile, props)
         if err != nil {
-            whisk.Debug(whisk.DbgError, "writeProps(%s, %#v) failed: %s\n", Properties.PropsFile, props, err)
+            whisk.Debug(whisk.DbgError, "WriteProps(%s, %#v) failed: %s\n", Properties.PropsFile, props, err)
             errStr := fmt.Sprintf(
                 wski18n.T("Unable to unset the property value: {{.err}}",
                     map[string]interface{}{"err": err}))
@@ -409,9 +408,9 @@ func loadProperties() error {
         //return werr
     }
 
-    props, err := readProps(Properties.PropsFile)
+    props, err := marshalling.ReadProps(Properties.PropsFile)
     if err != nil {
-        whisk.Debug(whisk.DbgError, "readProps(%s) failed: %s\n", Properties.PropsFile, err)
+        whisk.Debug(whisk.DbgError, "ReadProps(%s) failed: %s\n", Properties.PropsFile, err)
         errStr := fmt.Sprintf(
             wski18n.T("Unable to read the properties file '{{.filename}}': {{.err}}",
                 map[string]interface{}{"filename": Properties.PropsFile, "err": err}))
@@ -506,64 +505,3 @@ func parseConfigFlags(cmd *cobra.Command, args []string) error {
     return nil
 }
 
-func readProps(path string) (map[string]string, error) {
-
-    props := map[string]string{}
-
-    file, err := os.Open(path)
-    if err != nil {
-        // If file does not exist, just return props
-        whisk.Debug(whisk.DbgWarn, "Unable to read whisk properties file '%s' (file open error: %s); falling back to default properties\n" ,path, err)
-        return props, nil
-    }
-    defer file.Close()
-
-    lines := []string{}
-    scanner := bufio.NewScanner(file)
-    for scanner.Scan() {
-        lines = append(lines, scanner.Text())
-    }
-
-    props = map[string]string{}
-    for _, line := range lines {
-        kv := strings.Split(line, "=")
-        if len(kv) != 2 {
-            // Invalid format; skip
-            continue
-        }
-        props[kv[0]] = kv[1]
-    }
-
-    return props, nil
-
-}
-
-func writeProps(path string, props map[string]string) error {
-
-    file, err := os.Create(path)
-    if err != nil {
-        whisk.Debug(whisk.DbgError, "os.Create(%s) failed: %s\n", path, err)
-        errStr := fmt.Sprintf(
-            wski18n.T("Whisk properties file write failure: {{.err}}",
-                map[string]interface{}{"err": err}))
-        werr := whisk.MakeWskError(errors.New(errStr), whisk.EXITCODE_ERR_GENERAL, whisk.DISPLAY_MSG, whisk.NO_DISPLAY_USAGE)
-        return werr
-    }
-    defer file.Close()
-
-    writer := bufio.NewWriter(file)
-    defer writer.Flush()
-    for key, value := range props {
-        line := fmt.Sprintf("%s=%s", strings.ToUpper(key), value)
-        _, err = fmt.Fprintln(writer, line)
-        if err != nil {
-            whisk.Debug(whisk.DbgError, "fmt.Fprintln() write to '%s' failed: %s\n", path, err)
-            errStr := fmt.Sprintf(
-                wski18n.T("Whisk properties file write failure: {{.err}}",
-                    map[string]interface{}{"err": err}))
-            werr := whisk.MakeWskError(errors.New(errStr), whisk.EXITCODE_ERR_GENERAL, whisk.DISPLAY_MSG, whisk.NO_DISPLAY_USAGE)
-            return werr
-        }
-    }
-    return nil
-}

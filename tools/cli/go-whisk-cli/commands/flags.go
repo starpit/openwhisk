@@ -113,6 +113,11 @@ var flags struct {
         apiname    string
         configfile string
     }
+
+    // oauth_login
+    login struct {
+	provider string
+    }
 }
 
 func IsVerbose() bool {

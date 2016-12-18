@@ -1,0 +1,20 @@
+{
+    "github": {
+	"authorization_endpoint": "https://github.com/login/oauth/authorize",
+	"authorization_endpoint_query": {},
+	"credentials": {
+	    "client_id": "b0b98c8f0a1318aa1191"
+	}
+    },
+    
+    "google": {
+	"authorization_endpoint": "https://accounts.google.com/o/oauth2/v2/auth",
+	"authorization_endpoint_query": {
+	    "response_type": "code",
+	    "scope": "email"
+	},
+	"credentials": {
+	    "client_id": "29534615138-q4uoa0utu1vuron0g4f99eo27uei9pbk.apps.googleusercontent.com"
+	}
+    }
+}
