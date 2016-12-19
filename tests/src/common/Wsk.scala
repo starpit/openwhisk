@@ -81,6 +81,7 @@ class Wsk() extends RunWskCmd {
     implicit val pkg = new WskPackage
     implicit val namespace = new WskNamespace
     implicit val api = new WskApi
+    implicit val login = new WskLogin
 }
 
 trait FullyQualifiedNames {
@@ -830,6 +831,30 @@ class WskApi()
           { relpath map { r => Seq(r) } getOrElse Seq() } ++
           { operation map { o => Seq(o) } getOrElse Seq() }
         cli(wp.overrides ++ params, expectedExitCode, showCmd = true)
+    }
+}
+
+class WskLogin()
+    extends RunWskCmd {
+    protected val noun = "login"
+
+    /**
+     *
+     * @param provider the name of the oauth provider
+     * @param expectedExitCode (optional) the expected exit code for the command
+     * if the code is anything but DONTCARE_EXIT, assert the code is as expected
+     *
+     */
+    def login(
+        provider: String,
+        port: Integer,
+        expectedExitCode: Int = SUCCESS_EXIT)(
+            implicit wp: WskProps): RunResult = {
+        val params = Seq(noun, provider)
+        val env = Map("PORT_MODE" -> port.toString, "WSK_CONFIG_FILE" -> "")
+        cli(wp.overrides ++ params, expectedExitCode,
+            env = env,
+            showCmd = true)
     }
 }
 
