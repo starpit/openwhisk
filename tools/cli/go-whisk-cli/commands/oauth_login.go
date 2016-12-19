@@ -19,7 +19,10 @@ package commands
 import (
 	"os"
 	"fmt"
+	"net"
+	"sync"
 	"bytes"
+	"errors"
 	"runtime"
 	"syscall"
 	"io/ioutil"
@@ -39,7 +42,7 @@ import (
 const backendURI = "http://localhost:10014/oauth/v1/authenticate";
 
 // DO NOT CHANGE THIS, without also changing the oauth application registrations
-const redirectPort = 15231;
+const redirectPort = 15231
 
 // DANGER GLOBAL: this is the *exec.Cmd of the browser subprocess
 var browserCmd *exec.Cmd
@@ -73,7 +76,7 @@ func killBrowser() {
 			kill_err := syscall.Kill(-pgid, 15)  // note the minus sign
 
 			if kill_err != nil {
-				fmt.Printf("Error killing browser %s\n", kill_err)
+				fmt.Fprintln(os.Stderr, "Error killing browser", kill_err)
 			}
 		}
 
@@ -84,13 +87,19 @@ func killBrowser() {
 // something goofed up along the way
 func allBad(res http.ResponseWriter, req *http.Request) {
 	killBrowser()
+	fmt.Println("Exiting 1")
 	os.Exit(1)
 }
 
-// se got our subject key
-func allGood(body []byte, res http.ResponseWriter, req *http.Request) {
+// we got our subject key
+func finishUp(body []byte, res http.ResponseWriter, req *http.Request) error {
 	killBrowser()
 
+	if _, ok := os.LookupEnv("PORT_MODE"); ok {
+		// in PORT_MODE, we won't be updating the properties file
+		return nil
+	}
+	
 	// now we need to write out the properties
 	
         if props, read_err := marshalling.ReadProps(Properties.PropsFile); read_err == nil {
@@ -103,23 +112,23 @@ func allGood(body []byte, res http.ResponseWriter, req *http.Request) {
 		
 			if write_err := marshalling.WriteProps(Properties.PropsFile, props); write_err == nil {
 				// hurray, we're all done
-				fmt.Printf("ok\n")
-				os.Exit(0)
+				return nil
+
 			} else {
-				fmt.Printf("Error writing properties %v\n", write_err)
+				return write_err
 			}
 		} else {
-			fmt.Printf("Error parsing json %v\n", parse_err)
+			return parse_err
 		}
 	} else {
-		fmt.Printf("Error reading properties %v\n", read_err)
+		return read_err
 	}
-
-	os.Exit(1)
 }
 
-func onCodeCallback(providerName string) func (res http.ResponseWriter, req *http.Request) {
+func onCodeCallback(providerName string, wg sync.WaitGroup) func (res http.ResponseWriter, req *http.Request) {
 	return func(res http.ResponseWriter, req *http.Request) {
+		fmt.Println("Code callback")
+		
 		//
 		// cool, we should now have an oauth code
 		//
@@ -139,14 +148,15 @@ func onCodeCallback(providerName string) func (res http.ResponseWriter, req *htt
 			client := &http.Client{}
 			resp, err := client.Do(req)
 			if err != nil {
-				fmt.Printf("All bad %s\n", err);
+				fmt.Fprintln(os.Stderr, err);
 				allBad(res, req);
 				return;
 			}
 			defer resp.Body.Close()
 
 			if resp.StatusCode != 200 {
-				fmt.Printf("All bad %s\n", resp.Status)
+				fmt.Fprintln(os.Stderr, "Error communicating with backend. Got statusCode",
+					resp.StatusCode);
 				allBad(res, req)
 			} else {
 				//
@@ -154,20 +164,29 @@ func onCodeCallback(providerName string) func (res http.ResponseWriter, req *htt
 				//
 				body, err := ioutil.ReadAll(resp.Body)
 				if err != nil {
-					fmt.Printf("Error reading response %s\n", err)
+					fmt.Fprintln(os.Stderr, "Error reading response", err)
 					allBad(res, req)
 
 				} else {
-					// fmt.Printf("Login successful %s\n", body)
-					allGood(body, res, req)
+					finishup_err := finishUp(body, res, req)
+					if (finishup_err == nil) {
+						fmt.Println("ok")
+						os.Exit(0)
+						//wg.Done()
+
+					} else {
+						fmt.Fprintln(os.Stderr, finishup_err)
+						allBad(res, req)
+					}
 				}
 			}
 		} else {
 			//
 			// then we're just serving up a static file
 			//
-			fmt.Printf("Sending %v", req.URL.Path)
+			fmt.Println("Sending %v", req.URL.Path)
 			sendFile(req.URL.Path, res, req)
+			wg.Done()
 		}
 	}
 }
@@ -184,16 +203,38 @@ func openBrowser(Url string) (*exec.Cmd, error) {
 	case "darwin":
 		cmd = "open"
 	default: // "linux", "freebsd", "openbsd", "netbsd"
-		cmd = "xdg-open"
+		if port, ok := os.LookupEnv("PORT_MODE"); ok {
+			fmt.Println("PORT MODE. Using port", port)
+			//cmd = "firefox"
+			//args = []string{"--profile", profile, "--new-tab"}
+			//fmt.Println("URL", Url)
+			conn, err := net.Dial("tcp", "localhost:" + port)
+			fmt.Fprintf(conn, "%s", Url)
+			conn.Close()
+			return nil, err
+		} else {
+			cmd = "xdg-open"
+		}
 	}
 	args = append(args, Url)
 	command := exec.Command(cmd, args...)
+	// fmt.Println("COMMAND",command)
 	command.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
 	return command, command.Start()
 }
 
-func doLoginWithProvider(providerName string, provider ProviderType) bool {
+/*func waitForBrowserToExit() {
+	if browserCmd != nil {
+		browserCmd.Wait()
+
+		if browserCmd != nil {
+			os.Exit(1)
+		}
+	}
+}*/
+
+func doLoginWithProvider(providerName string, provider ProviderType) error {
 	//
 	// oauth requires that we use a browser to accept the user's
 	// credentials, and that we service a redirect_uri that the identity
@@ -202,8 +243,11 @@ func doLoginWithProvider(providerName string, provider ProviderType) bool {
 	// oauth handshake must be handled on the backend, in order to avoid
 	// exposing any of our oauth application secrets to the client)
 	//
-	http.HandleFunc("/", onCodeCallback(providerName));
-	defer http.ListenAndServe(fmt.Sprintf(":%d", redirectPort), nil);
+	var wg sync.WaitGroup
+	wg.Add(1)
+	
+	http.HandleFunc("/", onCodeCallback(providerName, wg));
+	go http.ListenAndServe(fmt.Sprintf(":%d", redirectPort), nil);
 
 	//
 	// when the server is up, we are ready to open up a browser so
@@ -217,50 +261,59 @@ func doLoginWithProvider(providerName string, provider ProviderType) bool {
 	var Url *url.URL
 	Url, err := url.Parse(provider.Authorization_endpoint)
 	if err != nil {
-		return false
+		return err
 	}
+
+	redirect_uri := fmt.Sprintf("http://localhost:%d", redirectPort)
+	fmt.Println("REDIRECT_URI",redirect_uri)
 
 	parameters := url.Values{}
 	parameters.Add("client_id", provider.Credentials.Client_id)
-	parameters.Add("redirect_uri", fmt.Sprintf("http://localhost:%d", redirectPort))
+	parameters.Add("redirect_uri", redirect_uri)
 	for k,v := range provider.Authorization_endpoint_query {
 		parameters.Add(k,v)
 	}
 	Url.RawQuery = parameters.Encode()
 
 	if cmd, err := openBrowser(Url.String()); err != nil {
-		fmt.Printf("Error opening browser %s\n", err)
-		return false
+		fmt.Fprintln(os.Stderr, "Error opening browser", err)
+		return err
 	} else {
+		fmt.Println("Good, browser opened")
 		browserCmd = cmd
-		return true
+		// defer waitForBrowserToExit()
+
+		wg.Wait()
+		fmt.Println("All done")
+		// if we get here, we have success
+		os.Exit(0)
+		return nil
 	}
 } /* end of doLoginWithProvider */
 
-func doLoginWithProviderName(providerName string) {
-	file, e := config.Load("oauth-providers.json")//ioutil.ReadFile("conf/oauth/providers.json")
-	if e != nil {
-		fmt.Printf("File error: %v\n", e)
-		//os.Exit(1)
-		return
+func doLoginWithProviderName(providerName string) error {
+	file, err := config.Load("oauth-providers.json")//ioutil.ReadFile("conf/oauth/providers.json")
+	if err != nil {
+		return err
 	}
-	var providers ProvidersType
-	json.Unmarshal(file, &providers)
 
-	// fmt.Print(providers)
+	var providers ProvidersType
+	if parse_err := json.Unmarshal(file, &providers); parse_err != nil {
+		return parse_err
+	}
 	
 	if provider, ok := providers[providerName]; ok {
-		doLoginWithProvider(providerName, provider)
+		return doLoginWithProvider(providerName, provider)
 
 	} else {
-		fmt.Printf("Unsupported auth provider %s\n", providerName);
+		return errors.New(fmt.Sprintf("Unsupported oauth provider: %s", providerName))
 	}
 
-}
+} /* end of doLoginWithProviderName */
 
 /*func main() {
 	var providerName = os.Args[1]
-	fmt.Printf("Using this provider: %s\n", providerName)
+	fmt.Println("Using this provider: %s", providerName)
 	doLoginWithProviderName(providerName)
 }*/
 
@@ -276,8 +329,6 @@ var oauth_loginCmd = &cobra.Command{
 	      }
 
 	  var providerName = args[0]
-	  doLoginWithProviderName(providerName)
-
-	  return nil
+	  return doLoginWithProviderName(providerName)
   },
 }
