@@ -114,6 +114,8 @@ case class TransactionId private (meta: TransactionMetadata) extends AnyVal {
       LogMarkerToken(startMarker.startMarker.component, startMarker.startMarker.action, LoggingMarkers.finish)
     val deltaToEnd = deltaToMarker(startMarker, endTime)
 
+    meta.latencyStack.stack += ((startMarker.startMarker.component, startMarker.startMarker.action, deltaToEnd))
+
     if (TransactionId.metricsLog) {
       logging.emit(
         logLevel,
@@ -198,7 +200,7 @@ case class StartMarker(val start: Instant, startMarker: LogMarkerToken)
  *           negative for system operation and zero when originator is not known
  * @param start the timestamp when the request processing commenced
  */
-protected case class TransactionMetadata(val id: Long, val start: Instant)
+protected case class TransactionMetadata(val id: Long, val start: Instant, val latencyStack: LatencyStack = new LatencyStack)
 
 object TransactionId {
 

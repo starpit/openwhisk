@@ -21,6 +21,7 @@ import scala.util.Try
 
 import spray.json._
 import whisk.common.TransactionId
+import whisk.common.LatencyStack
 import whisk.core.entity.ActivationId
 import whisk.core.entity.DocRevision
 import whisk.core.entity.EntityPath
@@ -92,6 +93,7 @@ object ActivationMessage extends DefaultJsonProtocol {
  * The whisk activation field will have its logs stripped.
  */
 case class CompletionMessage(override val transid: TransactionId,
+                             latencyStack: LatencyStack,
                              response: Either[ActivationId, WhiskActivation],
                              invoker: InstanceId)
     extends Message {
@@ -107,7 +109,7 @@ case class CompletionMessage(override val transid: TransactionId,
 
 object CompletionMessage extends DefaultJsonProtocol {
   def parse(msg: String): Try[CompletionMessage] = Try(serdes.read(msg.parseJson))
-  private val serdes = jsonFormat3(CompletionMessage.apply)
+  private val serdes = jsonFormat4(CompletionMessage.apply)
 }
 
 case class PingMessage(instance: InstanceId) extends Message {

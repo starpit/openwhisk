@@ -27,6 +27,7 @@ import org.apache.kafka.common.errors.RecordTooLargeException
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model.HttpMethod
 import akka.http.scaladsl.model.StatusCodes._
+import akka.http.scaladsl.model.headers.RawHeader
 import akka.http.scaladsl.server.RequestContext
 import akka.http.scaladsl.server.RouteResult
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
@@ -238,7 +239,9 @@ trait WhiskActionsApi extends WhiskCollectionAPI with PostActionActivation with 
                     val response = if (result) activation.resultAsJson else activation.toExtendedJson
 
                     if (activation.response.isSuccess) {
-                      complete(OK, response)
+                      respondWithHeader(RawHeader("X-Latency-Stack", transid.meta.latencyStack.stack.map(x => s"""["${x._1}","${x._2}",${x._3}]""").mkString("[",",","]"))) {
+                        complete(OK, response)
+                      }
                     } else if (activation.response.isApplicationError) {
                       // actions that result is ApplicationError status are considered a 'success'
                       // and will have an 'error' property in the result - the HTTP status is OK

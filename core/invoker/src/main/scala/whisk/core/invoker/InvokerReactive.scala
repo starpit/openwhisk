@@ -33,6 +33,7 @@ import akka.actor.Props
 import akka.stream.ActorMaterializer
 import spray.json._
 import spray.json.DefaultJsonProtocol._
+import whisk.common.LatencyStack
 import whisk.common.Logging
 import whisk.common.LoggingMarkers
 import whisk.common.TransactionId
@@ -113,8 +114,8 @@ class InvokerReactive(config: WhiskConfig, instance: InstanceId, producer: Messa
              controllerInstance: InstanceId) => {
     implicit val transid = tid
 
-    def send(res: Either[ActivationId, WhiskActivation], recovery: Boolean = false) = {
-      val msg = CompletionMessage(transid, res, instance)
+    def send(latencyStack: LatencyStack, res: Either[ActivationId, WhiskActivation], recovery: Boolean = false) = {
+      val msg = CompletionMessage(transid, latencyStack, res, instance)
 
       producer.send(s"completed${controllerInstance.toInt}", msg).andThen {
         case Success(_) =>
@@ -124,9 +125,9 @@ class InvokerReactive(config: WhiskConfig, instance: InstanceId, producer: Messa
       }
     }
 
-    send(Right(if (blockingInvoke) activationResult else activationResult.withoutLogsOrResult)).recoverWith {
+    send(tid.meta.latencyStack, Right(if (blockingInvoke) activationResult else activationResult.withoutLogsOrResult)).recoverWith {
       case t if t.getCause.isInstanceOf[RecordTooLargeException] =>
-        send(Left(activationResult.activationId), recovery = true)
+        send(tid.meta.latencyStack, Left(activationResult.activationId), recovery = true)
     }
   }
 

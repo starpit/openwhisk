@@ -34,6 +34,7 @@ import akka.actor.Props
 import akka.cluster.Cluster
 import akka.util.Timeout
 import akka.pattern.ask
+import whisk.common.LatencyStack
 import whisk.common.Logging
 import whisk.common.LoggingMarkers
 import whisk.common.TransactionId
@@ -142,7 +143,8 @@ class LoadBalancerService(config: WhiskConfig, instance: InstanceId, entityStore
   private def processCompletion(response: Either[ActivationId, WhiskActivation],
                                 tid: TransactionId,
                                 forced: Boolean,
-                                invoker: InstanceId): Unit = {
+                                invoker: InstanceId,
+                                latencyStack: latencyStack = LatencyStack): Unit = {
     val aid = response.fold(l => l, r => r.activationId)
 
     // treat left as success (as it is the result of a message exceeding the bus limit)
@@ -289,7 +291,7 @@ class LoadBalancerService(config: WhiskConfig, instance: InstanceId, entityStore
     val raw = new String(bytes, StandardCharsets.UTF_8)
     CompletionMessage.parse(raw) match {
       case Success(m: CompletionMessage) =>
-        processCompletion(m.response, m.transid, forced = false, invoker = m.invoker)
+        processCompletion(m.response, m.transid, latencyStack = m.latencyStack, forced = false, invoker = m.invoker)
         activationFeed ! MessageFeed.Processed
 
       case Failure(t) =>
