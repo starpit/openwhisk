@@ -93,8 +93,7 @@ object ActivationMessage extends DefaultJsonProtocol {
  * The whisk activation field will have its logs stripped.
  */
 case class CompletionMessage(override val transid: TransactionId,
-                             latencyStack: LatencyStack,
-                             response: Either[ActivationId, WhiskActivation],
+                             response: WhiskActivation.Outcome,
                              invoker: InstanceId)
     extends Message {
 
