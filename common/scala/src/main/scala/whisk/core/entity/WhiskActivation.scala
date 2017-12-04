@@ -24,6 +24,7 @@ import scala.util.Try
 
 import spray.json._
 import spray.json.DefaultJsonProtocol._
+import whisk.common.LatencyStack
 import whisk.common.TransactionId
 import whisk.core.database.ArtifactStore
 import whisk.core.database.DocumentFactory
@@ -118,17 +119,22 @@ case class WhiskActivation(namespace: EntityPath,
   def withLogs(logs: ActivationLogs) = copy(logs = logs).revision[WhiskActivation](rev)
 }
 
+/**
+  * The invoker's result for an activation might only be an ActivationId,
+  * e.g. in the case of RecordTooLargeException; see InvokerReactive
+  *
+  */
+case class WhiskActivationOutcome(res: Either[ActivationId, WhiskActivation], latencyStack: LatencyStack)
+object WhiskActivationOutcome extends DefaultJsonProtocol {
+  implicit val serdes = jsonFormat2(WhiskActivationOutcome.apply)
+}
+
 object WhiskActivation
     extends DocumentFactory[WhiskActivation]
     with WhiskEntityQueries[WhiskActivation]
     with DefaultJsonProtocol {
 
-  /**
-   * The invoker's result for an activation might only be an ActivationId,
-   * e.g. in the case of RecordTooLargeException; see InvokerReactive
-   *
-   */
-  type Outcome = Either[ActivationId, WhiskActivation]
+  type Outcome = WhiskActivationOutcome
 
   private implicit val instantSerdes = new RootJsonFormat[Instant] {
     def write(t: Instant) = t.toEpochMilli.toJson

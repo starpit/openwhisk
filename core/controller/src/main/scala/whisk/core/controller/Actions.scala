@@ -232,14 +232,15 @@ trait WhiskActionsApi extends WhiskCollectionAPI with PostActionActivation with 
                 val actionWithMergedParams = env.map(action.inherit(_)) getOrElse action
                 val waitForResponse = if (blocking) Some(waitOverride) else None
                 onComplete(invokeAction(user, actionWithMergedParams, payload, waitForResponse, cause = None)) {
-                  case Success(Left(activationId)) =>
+                  case Success(WhiskActivationOutcome(Left(activationId), _)) =>
                     // non-blocking invoke or blocking invoke which got queued instead
                     complete(Accepted, activationId.toJsObject)
-                  case Success(Right(activation)) =>
+                  case Success(WhiskActivationOutcome(Right(activation), invokerStack)) =>
                     val response = if (result) activation.resultAsJson else activation.toExtendedJson
 
                     if (activation.response.isSuccess) {
-                      respondWithHeader(RawHeader("X-Latency-Stack", transid.meta.latencyStack.stack.map(x => s"""["${x._1}","${x._2}",${x._3}]""").mkString("[",",","]"))) {
+                      //respondWithHeader(RawHeader("X-Latency-Stack", transid.meta.latencyStack.stack.map(x => s"""["${x._1}","${x._2}",${x._3}]""").mkString("[",",","]"))) {
+                      respondWithHeader(RawHeader("X-Latency-Stack", transid.meta.latencyStack.stack.map(x => s"${x._2}=${x._3}").mkString(" "))) {
                         complete(OK, response)
                       }
                     } else if (activation.response.isApplicationError) {

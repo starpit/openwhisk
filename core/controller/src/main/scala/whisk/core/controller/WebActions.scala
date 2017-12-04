@@ -628,7 +628,7 @@ trait WhiskWebActionsApi extends Directives with ValidateRequestSize with PostAc
                               projectResultField: => List[String],
                               responseType: MediaExtension)(implicit transid: TransactionId) = {
     onComplete(queuedActivation) {
-      case Success(Right(activation)) =>
+      case Success(WhiskActivationOutcome(Right(activation), invokerStack)) =>
         val result = activation.resultAsJson
 
         if (activation.response.isSuccess || activation.response.isApplicationError) {
@@ -655,7 +655,7 @@ trait WhiskWebActionsApi extends Directives with ValidateRequestSize with PostAc
           terminate(BadRequest, Messages.errorProcessingRequest)
         }
 
-      case Success(Left(activationId)) =>
+      case Success(WhiskActivationOutcome(Left(activationId),_)) =>
         // blocking invoke which got queued instead
         // this should not happen, instead it should be a blocking invoke timeout
         logging.info(this, "activation waiting period expired")

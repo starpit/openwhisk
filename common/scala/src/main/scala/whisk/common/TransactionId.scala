@@ -114,7 +114,7 @@ case class TransactionId private (meta: TransactionMetadata) extends AnyVal {
       LogMarkerToken(startMarker.startMarker.component, startMarker.startMarker.action, LoggingMarkers.finish)
     val deltaToEnd = deltaToMarker(startMarker, endTime)
 
-    meta.latencyStack.stack += ((startMarker.startMarker.component, startMarker.startMarker.action, deltaToEnd))
+    meta.latencyStack add ((startMarker.startMarker.component, startMarker.startMarker.action, deltaToEnd))
 
     if (TransactionId.metricsLog) {
       logging.emit(

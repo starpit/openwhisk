@@ -135,7 +135,7 @@ protected[actions] trait PrimitiveActions {
         .getOrElse {
           // no, return the activation id
           transid.finished(this, startActivation)
-          Future.successful(Left(message.activationId))
+          Future.successful(WhiskActivationOutcome(Left(message.activationId), transid.meta.latencyStack))
         }
     }
   }
@@ -167,8 +167,9 @@ protected[actions] trait PrimitiveActions {
     logging.info(this, s"action activation will block for result upto $totalWaitTime")
 
     activeAckResponse map {
-      case result @ Right(_) =>
+      case result @ WhiskActivationOutcome(Right(_),latencyStack) =>
         // activation complete, result is available
+        transid.meta.latencyStack amend latencyStack
         finisher ! ActivationFinisher.Finish(result)
 
       case _ =>
@@ -183,7 +184,7 @@ protected[actions] trait PrimitiveActions {
     // longer than the permitted, per totalWaitTime).
     promise.withAlternativeAfterTimeout(
       totalWaitTime, {
-        Future.successful(Left(activationId)).andThen {
+        Future.successful(WhiskActivationOutcome(Left(activationId), transid.meta.latencyStack)).andThen {
           // result no longer interesting; terminate the finisher/shut down db polling if necessary
           case _ => actorSystem.stop(finisher)
         }
@@ -193,7 +194,7 @@ protected[actions] trait PrimitiveActions {
 
 /** Companion to the ActivationFinisher. */
 protected[actions] object ActivationFinisher {
-  case class Finish(activation: Right[ActivationId, WhiskActivation])
+  case class Finish(activation: WhiskActivationOutcome)//(Right[ActivationId, WhiskActivation])
 
   private type ActivationLookup = () => Future[WhiskActivation]
 
@@ -298,7 +299,7 @@ protected[actions] object ActivationFinisher {
         activationLookup() map {
           // complete the future, which in turn will poison pill this scheduler
           activation =>
-            promise.trySuccess(Right(activation.withoutLogs)) // logs excluded on blocking calls
+            promise.trySuccess(WhiskActivationOutcome(Right(activation.withoutLogs), transid.meta.latencyStack)) // logs excluded on blocking calls
         } andThen {
           case Failure(e: NoDocumentException) => // do nothing, scheduler will reschedule another poll
           case Failure(t: Throwable) => // something went wrong, abort

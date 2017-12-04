@@ -45,7 +45,7 @@ import whisk.core.connector.MessageFeed
 import whisk.core.connector.MessageProducer
 import whisk.core.connector.MessagingProvider
 import whisk.core.database.NoDocumentException
-import whisk.core.entity.{ActivationId, WhiskActivation}
+import whisk.core.entity.{ActivationId, WhiskActivation, WhiskActivationOutcome}
 import whisk.core.entity.EntityName
 import whisk.core.entity.ExecutableWhiskActionMetaData
 import whisk.core.entity.Identity
@@ -144,11 +144,11 @@ class LoadBalancerService(config: WhiskConfig, instance: InstanceId, entityStore
                                 tid: TransactionId,
                                 forced: Boolean,
                                 invoker: InstanceId,
-                                latencyStack: latencyStack = LatencyStack): Unit = {
-    val aid = response.fold(l => l, r => r.activationId)
+                                latencyStack: LatencyStack = new LatencyStack): Unit = {
+    val aid = response.res.fold(l => l, r => r.activationId)
 
     // treat left as success (as it is the result of a message exceeding the bus limit)
-    val isSuccess = response.fold(l => true, r => !r.response.isWhiskError)
+    val isSuccess = response.res.fold(l => true, r => !r.response.isWhiskError)
 
     loadBalancerData.removeActivation(aid) match {
       case Some(entry) =>
@@ -194,7 +194,7 @@ class LoadBalancerService(config: WhiskConfig, instance: InstanceId, entityStore
     // in this case, if the activation handler is still registered, remove it and update the books.
     loadBalancerData.putActivation(activationId, {
       actorSystem.scheduler.scheduleOnce(timeout) {
-        processCompletion(Left(activationId), transid, forced = true, invoker = invokerName)
+        processCompletion(WhiskActivationOutcome(Left(activationId), transid.meta.latencyStack), transid, forced = true, invoker = invokerName)
       }
 
       ActivationEntry(activationId, namespaceId, invokerName, Promise[WhiskActivation.Outcome]())
@@ -291,7 +291,7 @@ class LoadBalancerService(config: WhiskConfig, instance: InstanceId, entityStore
     val raw = new String(bytes, StandardCharsets.UTF_8)
     CompletionMessage.parse(raw) match {
       case Success(m: CompletionMessage) =>
-        processCompletion(m.response, m.transid, latencyStack = m.latencyStack, forced = false, invoker = m.invoker)
+        processCompletion(m.response, m.transid/*, latencyStack = m.latencyStack*/, forced = false, invoker = m.invoker)
         activationFeed ! MessageFeed.Processed
 
       case Failure(t) =>

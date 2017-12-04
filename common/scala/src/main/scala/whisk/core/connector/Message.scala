@@ -21,14 +21,15 @@ import scala.util.Try
 
 import spray.json._
 import whisk.common.TransactionId
-import whisk.common.LatencyStack
+//import whisk.common.LatencyStack
 import whisk.core.entity.ActivationId
 import whisk.core.entity.DocRevision
 import whisk.core.entity.EntityPath
 import whisk.core.entity.FullyQualifiedEntityName
 import whisk.core.entity.Identity
 import whisk.core.entity.InstanceId
-import whisk.core.entity.WhiskActivation
+//import whisk.core.entity.WhiskActivation
+import whisk.core.entity.WhiskActivationOutcome
 
 /** Basic trait for messages that are sent on a message bus connector. */
 trait Message {
@@ -93,7 +94,7 @@ object ActivationMessage extends DefaultJsonProtocol {
  * The whisk activation field will have its logs stripped.
  */
 case class CompletionMessage(override val transid: TransactionId,
-                             response: WhiskActivation.Outcome,
+                             response: WhiskActivationOutcome,
                              invoker: InstanceId)
     extends Message {
 
@@ -102,13 +103,14 @@ case class CompletionMessage(override val transid: TransactionId,
   }
 
   override def toString = {
-    response.fold(l => l, r => r.activationId).asString
+    response.res.fold(l => l, r => r.activationId).asString
   }
 }
 
 object CompletionMessage extends DefaultJsonProtocol {
   def parse(msg: String): Try[CompletionMessage] = Try(serdes.read(msg.parseJson))
-  private val serdes = jsonFormat4(CompletionMessage.apply)
+  private implicit val outcomeSerdes = jsonFormat2(WhiskActivationOutcome.apply)
+  private val serdes = jsonFormat3(CompletionMessage.apply)
 }
 
 case class PingMessage(instance: InstanceId) extends Message {
