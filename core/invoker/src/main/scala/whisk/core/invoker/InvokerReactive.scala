@@ -169,7 +169,7 @@ class InvokerReactive(config: WhiskConfig, instance: InstanceId, producer: Messa
       .flatMap { msg =>
         implicit val transid = msg.transid
 
-        transid.meta.latencyStack.add("invoker", "frontsideQueueing", Instant.now.toEpochMilli - msg.depatureTime)
+        transid.meta.latencyStack add (("invoker", "frontsideQueueing", Instant.now.toEpochMilli - msg.depatureTime))
 
         val start = transid.started(this, LoggingMarkers.INVOKER_ACTIVATION)
         val namespace = msg.action.path
