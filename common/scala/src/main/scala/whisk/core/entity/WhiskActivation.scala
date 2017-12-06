@@ -124,9 +124,11 @@ case class WhiskActivation(namespace: EntityPath,
   * e.g. in the case of RecordTooLargeException; see InvokerReactive
   *
   */
-case class WhiskActivationOutcome(res: Either[ActivationId, WhiskActivation], latencyStack: LatencyStack)
+case class WhiskActivationOutcome(res: Either[ActivationId, WhiskActivation],
+                                  depatureTime: Long,
+                                  latencyStack: LatencyStack)
 object WhiskActivationOutcome extends DefaultJsonProtocol {
-  implicit val serdes = jsonFormat2(WhiskActivationOutcome.apply)
+  implicit val serdes = jsonFormat3(WhiskActivationOutcome.apply)
 }
 
 object WhiskActivation

@@ -18,6 +18,7 @@
 package whisk.core.loadBalancer
 
 import java.nio.charset.StandardCharsets
+import java.time.Instant
 
 import scala.annotation.tailrec
 import scala.concurrent.Await
@@ -194,7 +195,7 @@ class LoadBalancerService(config: WhiskConfig, instance: InstanceId, entityStore
     // in this case, if the activation handler is still registered, remove it and update the books.
     loadBalancerData.putActivation(activationId, {
       actorSystem.scheduler.scheduleOnce(timeout) {
-        processCompletion(WhiskActivationOutcome(Left(activationId), transid.meta.latencyStack), transid, forced = true, invoker = invokerName)
+        processCompletion(WhiskActivationOutcome(Left(activationId), Instant.now.toEpochMilli, transid.meta.latencyStack), transid, forced = true, invoker = invokerName)
       }
 
       ActivationEntry(activationId, namespaceId, invokerName, Promise[WhiskActivation.Outcome]())

@@ -126,11 +126,11 @@ protected[actions] trait SequenceActions {
           logging.info(this, s"invoke sequence blocking topmost!")
           futureSeqResult.withAlternativeAfterTimeout(
             timeout,
-            Future.successful(WhiskActivationOutcome(Left(seqActivationId), transid.meta.latencyStack), atomicActionsCount))
+            Future.successful(WhiskActivationOutcome(Left(seqActivationId), Instant.now.toEpochMilli, transid.meta.latencyStack), atomicActionsCount))
         }
         .getOrElse {
           // non-blocking sequence execution, return activation id
-          Future.successful(WhiskActivationOutcome(Left(seqActivationId), transid.meta.latencyStack), 0)
+          Future.successful(WhiskActivationOutcome(Left(seqActivationId), Instant.now.toEpochMilli, transid.meta.latencyStack), 0)
         }
     } else {
       // not topmost, no need to worry about terminating incoming request
@@ -159,10 +159,10 @@ protected[actions] trait SequenceActions {
         val end = Instant.now(Clock.systemUTC())
         val seqActivation =
           makeSequenceActivation(user, action, seqActivationId, accounting, topmost, cause, start, end)
-        (WhiskActivationOutcome(Right(seqActivation),transid.meta.latencyStack), accounting.atomicActionCnt)
+        (WhiskActivationOutcome(Right(seqActivation),Instant.now.toEpochMilli,transid.meta.latencyStack), accounting.atomicActionCnt)
       }
       .andThen {
-        case Success((WhiskActivationOutcome(Right(seqActivation),_), _)) => storeSequenceActivation(seqActivation)
+        case Success((WhiskActivationOutcome(Right(seqActivation),_,_), _)) => storeSequenceActivation(seqActivation)
 
         // This should never happen; in this case, there is no activation record created or stored:
         // should there be?
@@ -350,10 +350,10 @@ protected[actions] trait SequenceActions {
 
       futureWhiskActivationTuple
         .map {
-          case (WhiskActivationOutcome(Right(activation),_), atomicActionCountSoFar) =>
+          case (WhiskActivationOutcome(Right(activation),_,_), atomicActionCountSoFar) =>
             accounting.maybe(activation, atomicActionCountSoFar, actionSequenceLimit)
 
-          case (WhiskActivationOutcome(Left(activationId),_), atomicActionCountSoFar) =>
+          case (WhiskActivationOutcome(Left(activationId),_,_), atomicActionCountSoFar) =>
             // the result could not be retrieved in time either from active ack or from db
             logging.error(this, s"component activation timedout for $activationId")
             val activationResponse = ActivationResponse.whiskError(sequenceRetrieveActivationTimeout(activationId))

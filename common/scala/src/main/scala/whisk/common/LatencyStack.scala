@@ -9,7 +9,7 @@ import spray.json._
 //import whisk.core.entity.WhiskActivation
 
 /**
-  * LatencyStack: array of tuples (LogMarkerToken, component-to-component latency)
+  * LatencyStack: array of tuples (component, action, component-to-component latency)
   * 
   */
 case class LatencyStack(val stack: ArrayBuffer[(String,String,Long)] = new ArrayBuffer[(String,String,Long)]) {

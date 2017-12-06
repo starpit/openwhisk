@@ -115,7 +115,7 @@ class InvokerReactive(config: WhiskConfig, instance: InstanceId, producer: Messa
     implicit val transid = tid
 
     def send(latencyStack: LatencyStack, res: Either[ActivationId, WhiskActivation], recovery: Boolean = false) = {
-      val msg = CompletionMessage(transid, WhiskActivationOutcome(res, latencyStack), instance)
+      val msg = CompletionMessage(transid, WhiskActivationOutcome(res, Instant.now.toEpochMilli, latencyStack), instance)
 
       producer.send(s"completed${controllerInstance.toInt}", msg).andThen {
         case Success(_) =>
@@ -168,6 +168,8 @@ class InvokerReactive(config: WhiskConfig, instance: InstanceId, producer: Messa
       .filter(_.action.version.isDefined)
       .flatMap { msg =>
         implicit val transid = msg.transid
+
+        transid.meta.latencyStack.add("invoker", "frontsideQueueing", Instant.now.toEpochMilli - msg.depatureTime)
 
         val start = transid.started(this, LoggingMarkers.INVOKER_ACTIVATION)
         val namespace = msg.action.path

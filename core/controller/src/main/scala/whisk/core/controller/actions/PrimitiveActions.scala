@@ -17,6 +17,7 @@
 
 package whisk.core.controller.actions
 
+import java.time.Instant
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
 import scala.concurrent.Promise
@@ -101,6 +102,7 @@ protected[actions] trait PrimitiveActions {
     val args = action.parameters merge payload
     val message = ActivationMessage(
       transid,
+      Instant.now.toEpochMilli,
       FullyQualifiedEntityName(action.namespace, action.name, Some(action.version)),
       action.rev,
       user,
@@ -135,7 +137,7 @@ protected[actions] trait PrimitiveActions {
         .getOrElse {
           // no, return the activation id
           transid.finished(this, startActivation)
-          Future.successful(WhiskActivationOutcome(Left(message.activationId), transid.meta.latencyStack))
+          Future.successful(WhiskActivationOutcome(Left(message.activationId), Instant.now.toEpochMilli, transid.meta.latencyStack))
         }
     }
   }
@@ -167,8 +169,9 @@ protected[actions] trait PrimitiveActions {
     logging.info(this, s"action activation will block for result upto $totalWaitTime")
 
     activeAckResponse map {
-      case result @ WhiskActivationOutcome(Right(_),latencyStack) =>
+      case result @ WhiskActivationOutcome(Right(_),depatureTime,latencyStack) =>
         // activation complete, result is available
+        transid.meta.latencyStack.add(("invoker", "backsideQueueing", Instant.now.toEpochMilli - depatureTime))
         transid.meta.latencyStack amend latencyStack
         finisher ! ActivationFinisher.Finish(result)
 
@@ -184,7 +187,7 @@ protected[actions] trait PrimitiveActions {
     // longer than the permitted, per totalWaitTime).
     promise.withAlternativeAfterTimeout(
       totalWaitTime, {
-        Future.successful(WhiskActivationOutcome(Left(activationId), transid.meta.latencyStack)).andThen {
+        Future.successful(WhiskActivationOutcome(Left(activationId), Instant.now.toEpochMilli, transid.meta.latencyStack)).andThen {
           // result no longer interesting; terminate the finisher/shut down db polling if necessary
           case _ => actorSystem.stop(finisher)
         }
@@ -299,7 +302,7 @@ protected[actions] object ActivationFinisher {
         activationLookup() map {
           // complete the future, which in turn will poison pill this scheduler
           activation =>
-            promise.trySuccess(WhiskActivationOutcome(Right(activation.withoutLogs), transid.meta.latencyStack)) // logs excluded on blocking calls
+            promise.trySuccess(WhiskActivationOutcome(Right(activation.withoutLogs), Instant.now.toEpochMilli, transid.meta.latencyStack)) // logs excluded on blocking calls
         } andThen {
           case Failure(e: NoDocumentException) => // do nothing, scheduler will reschedule another poll
           case Failure(t: Throwable) => // something went wrong, abort

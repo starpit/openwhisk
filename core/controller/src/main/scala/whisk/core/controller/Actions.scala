@@ -232,10 +232,10 @@ trait WhiskActionsApi extends WhiskCollectionAPI with PostActionActivation with 
                 val actionWithMergedParams = env.map(action.inherit(_)) getOrElse action
                 val waitForResponse = if (blocking) Some(waitOverride) else None
                 onComplete(invokeAction(user, actionWithMergedParams, payload, waitForResponse, cause = None)) {
-                  case Success(WhiskActivationOutcome(Left(activationId), _)) =>
+                  case Success(WhiskActivationOutcome(Left(activationId), _, _)) =>
                     // non-blocking invoke or blocking invoke which got queued instead
                     complete(Accepted, activationId.toJsObject)
-                  case Success(WhiskActivationOutcome(Right(activation), invokerStack)) =>
+                  case Success(WhiskActivationOutcome(Right(activation), _, invokerStack)) =>
                     val response = if (result) activation.resultAsJson else activation.toExtendedJson
 
                     if (activation.response.isSuccess) {
