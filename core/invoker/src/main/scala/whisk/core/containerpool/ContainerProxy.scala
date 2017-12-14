@@ -400,7 +400,7 @@ object ContainerProxy {
             collectLogs: (TransactionId, Container, ExecutableWhiskAction) => Future[ActivationLogs],
             instance: InstanceId,
             unusedTimeout: FiniteDuration = 10.minutes,
-            pauseGrace: FiniteDuration = 50.milliseconds) =
+            pauseGrace: FiniteDuration = 100000.milliseconds) =
     Props(new ContainerProxy(factory, ack, store, collectLogs, instance, unusedTimeout, pauseGrace))
 
   // Needs to be thread-safe as it's used by multiple proxies concurrently.
