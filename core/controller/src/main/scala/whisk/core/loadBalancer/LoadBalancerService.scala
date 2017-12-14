@@ -188,6 +188,8 @@ class LoadBalancerService(config: WhiskConfig, instance: InstanceId, entityStore
                               namespaceId: UUID,
                               invokerName: InstanceId,
                               transid: TransactionId): ActivationEntry = {
+    transid.meta.invokerAssignment.set(invokerName.toInt)
+
     val timeout = action.limits.timeout.duration + activeAckTimeoutGrace
     // Install a timeout handler for the catastrophic case where an active ack is not received at all
     // (because say an invoker is down completely, or the connection to the message bus is disrupted) or when
@@ -389,29 +391,36 @@ object LoadBalancerService {
    * @param hash stable identifier of the entity to be scheduled
    * @return an invoker to schedule to or None of no invoker is available
    */
+  val rng = new scala.util.Random(Instant.now.toEpochMilli)
   def schedule(invokers: Seq[(InstanceId, InvokerState, Int)],
                invokerBusyThreshold: Int,
-               hash: Int): Option[InstanceId] = {
+               hash: Int)(implicit logging: Logging): Option[InstanceId] = {
 
     val numInvokers = invokers.size
     if (numInvokers > 0) {
       val homeInvoker = hash % numInvokers
       val stepSizes = LoadBalancerService.pairwiseCoprimeNumbersUntil(numInvokers)
-      val step = stepSizes(hash % stepSizes.size)
+      //val step = stepSizes(hash % stepSizes.size)
+      //      val step = 1//stepSizes(hash % stepSizes.size)
+      //val step = rng.nextInt(numInvokers)
 
       val invokerProgression = Stream
         .from(0)
         .take(numInvokers)
-        .map(i => (homeInvoker + i * step) % numInvokers)
+//        .map(i => (homeInvoker + i * step) % numInvokers)
+        .map(i => (rng.nextInt(numInvokers)))
         .map(invokers)
         .filter(_._2 == Healthy)
 
-      invokerProgression
+      val id = invokerProgression
         .find(_._3 < invokerBusyThreshold)
         .orElse(invokerProgression.find(_._3 < invokerBusyThreshold * 2))
         .orElse(invokerProgression.find(_._3 < invokerBusyThreshold * 3))
         .orElse(invokerProgression.headOption)
         .map(_._1)
+
+	//logging.error(this, s"INVOKER ${id}")
+	id
     } else None
   }
 
