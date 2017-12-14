@@ -240,7 +240,8 @@ trait WhiskActionsApi extends WhiskCollectionAPI with PostActionActivation with 
 
                     if (activation.response.isSuccess) {
                       //respondWithHeader(RawHeader("X-Latency-Stack", transid.meta.latencyStack.stack.map(x => s"""["${x._1}","${x._2}",${x._3}]""").mkString("[",",","]"))) {
-                      respondWithHeader(RawHeader("X-Latency-Stack", transid.meta.latencyStack.stack.map(x => s"${x._2}=${x._3}").mkString(" "))) {
+                      respondWithHeaders(List(RawHeader("X-Latency-Stack", transid.meta.latencyStack.stack.map(x => s"${x._2}=${x._3}").mkString(" ")),
+		      RawHeader("X-Invoker-Assignment", transid.meta.invokerAssignment.toString))) {
                         complete(OK, response)
                       }
                     } else if (activation.response.isApplicationError) {

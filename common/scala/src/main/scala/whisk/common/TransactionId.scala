@@ -200,7 +200,7 @@ case class StartMarker(val start: Instant, startMarker: LogMarkerToken)
  *           negative for system operation and zero when originator is not known
  * @param start the timestamp when the request processing commenced
  */
-protected case class TransactionMetadata(val id: Long, val start: Instant, val latencyStack: LatencyStack = new LatencyStack)
+protected case class TransactionMetadata(val id: Long, val start: Instant, val latencyStack: LatencyStack = new LatencyStack, val invokerAssignment: java.util.concurrent.atomic.AtomicLong = new java.util.concurrent.atomic.AtomicLong(-1))
 
 object TransactionId {
 
